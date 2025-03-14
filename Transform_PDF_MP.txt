@@ -1,0 +1,29 @@
+let
+Transform_PDF = (TablePDF as binary ) as table =>
+    let
+        Origen = Pdf.Tables(TablePDF, [Implementation="1.3"]),
+        SeleccionarTablas = Table.SelectRows(Origen, each ([Kind] = "Table")),
+        Transformar = Table.TransformColumns( SeleccionarTablas,{{"Data", each 
+            let
+            PromoverEncabezados = Table.PromoteHeaders(_),
+            LimpiarFilasNull = Table.SelectRows(PromoverEncabezados, each not List.IsEmpty(List.RemoveMatchingItems(Record.FieldValues(_), {"", null})) ),
+            RenombrarCol = Table.TransformColumnNames(LimpiarFilasNull, each if Text.Contains( Text.Trim(_), "ID de la") then "ID de la operación" else _),
+            LimpiarFilas = Table.SelectRows(RenombrarCol, each ([#"ID de la operación"] <> "operación")),
+            ReemplazarNull = Table.ReplaceValue(LimpiarFilas, null, " ", Replacer.ReplaceValue, {"Descripción"})
+            in
+            ReemplazarNull
+            }}),
+        #"Texto insertado entre delimitadores" = Table.AddColumn(Transformar, "Page", each Text.BetweenDelimiters([Name], "(", ")"), type text),
+        #"Otras columnas quitadas" = Table.SelectColumns(#"Texto insertado entre delimitadores",{"Page", "Data"}),
+        #"Se expandió Data" = Table.ExpandTableColumn(#"Otras columnas quitadas", "Data", Table.ColumnNames( Table.Combine(#"Otras columnas quitadas"[Data]))),
+        #"Columnas combinadas" = Table.CombineColumns(#"Se expandió Data",{"Fecha", "Descripción", "ID de la operación"},Combiner.CombineTextByDelimiter("", QuoteStyle.None),"Combinada"),
+        #"Dividir columna por posición" = Table.SplitColumn(#"Columnas combinadas", "Combinada", Splitter.SplitTextByPositions({0, 10}, false), {"Combinada.1", "Combinada.2"}),
+        #"Dividir columna por: transición de caracteres1" = Table.SplitColumn(Table.TransformColumns(#"Dividir columna por posición", {{"Combinada.2", Text.Reverse}}), "Combinada.2", Splitter.SplitTextByCharacterTransition({"0".."9"}, (c) => not List.Contains({"0".."9"},  c)), {"Combinada.2.1", "Combinada.2.2"}),
+        #"Texto limpio" = Table.TransformColumns(#"Dividir columna por: transición de caracteres1",{{"Combinada.2.2", each Text.Reverse(Text.Replace(_, "#(lf)", " ")), type text}, {"Combinada.2.1", Text.Reverse, type text}}),
+        #"Columnas reordenadas" = Table.ReorderColumns(#"Texto limpio",{"Page", "Combinada.1", "Combinada.2.2", "Combinada.2.1", "Valor", "Saldo"}),
+        #"Columnas con nombre cambiado" = Table.RenameColumns(#"Columnas reordenadas",List.Zip( { Table.ColumnNames( #"Columnas reordenadas"), Table.ColumnNames(#"Se expandió Data")})),
+        QuitarFilasVacias = Table.SelectRows(#"Columnas con nombre cambiado", each [Valor] <> null and [Valor] <> "" and [Saldo] <> null and [Saldo] <> "")
+    in
+       try QuitarFilasVacias otherwise Table.FromList({})
+in
+Transform_PDF
