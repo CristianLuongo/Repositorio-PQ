@@ -36,12 +36,15 @@ let
                                 ),
                                 
                                 // Normalizar nombres de columnas - específicamente "ID de la operación"
-                                RenombrarCol = Table.TransformColumnNames(
-                                    LimpiarFilasNull, 
-                                    each if Text.Contains(Text.Trim(_), "ID de la") 
-                                         then "ID de la operación" 
-                                         else _
-                                ),
+                                RenombrarCol = 
+                                    Table.TransformColumnNames(
+                                        LimpiarFilasNull, each 
+                                        if Text.Contains( Text.Trim(_), "ID de la") then "ID de la operación" else 
+                                        if Text.Contains(_, "Column1") then "Fecha" else 
+                                        if Text.Contains(_, "Column3") then "ID de la operación" else 
+                                        if Text.Contains(_, "Column4") then "Valor" else 
+                                        if Text.Contains(_, "Column5") then "Saldo" else _
+                                    ),
                                 
                                 // Eliminar filas donde el ID de operación sea literalmente "operación" (encabezado duplicado)
                                 LimpiarFilas = Table.SelectRows(
@@ -58,7 +61,7 @@ let
                                     {"Descripción"}
                                 )
                             in
-                                ReemplazarNull
+                                try ReemplazarNull otherwise RenombrarCol
                     }
                 }
             ),
