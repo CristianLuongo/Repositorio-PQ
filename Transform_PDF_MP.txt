@@ -24,12 +24,12 @@ let
                         "Data", 
                         each 
                             let
-                                // Promover la primera fila como encabezados de columna
-                                PromoverEncabezados = Table.PromoteHeaders(_),
+                                // DesambiguarTabla
+                                Tablas = _,
                                 
                                 // Eliminar filas completamente vacías o que solo contengan valores nulos/vacíos
                                 LimpiarFilasNull = Table.SelectRows(
-                                    PromoverEncabezados, 
+                                    Tablas, 
                                     each not List.IsEmpty(
                                         List.RemoveMatchingItems(Record.FieldValues(_), {"", null})
                                     )
@@ -39,8 +39,8 @@ let
                                 RenombrarCol = 
                                     Table.TransformColumnNames(
                                         LimpiarFilasNull, each 
-                                        if Text.Contains( Text.Trim(_), "ID de la") then "ID de la operación" else 
                                         if Text.Contains(_, "Column1") then "Fecha" else 
+                                        if Text.Contains(_, "Column2") then "Descripción" else
                                         if Text.Contains(_, "Column3") then "ID de la operación" else 
                                         if Text.Contains(_, "Column4") then "Valor" else 
                                         if Text.Contains(_, "Column5") then "Saldo" else _
@@ -49,7 +49,7 @@ let
                                 // Eliminar filas donde el ID de operación sea literalmente "operación" (encabezado duplicado)
                                 LimpiarFilas = Table.SelectRows(
                                     RenombrarCol, 
-                                    each ([#"ID de la operación"] <> "operación")
+                                    each ([#"ID de la operación"] <> "operación") and ([Fecha] <> "Fecha")
                                 ),
                                 
                                 // Reemplazar valores nulos en la columna Descripción con espacios en blanco
@@ -61,7 +61,7 @@ let
                                     {"Descripción"}
                                 )
                             in
-                                try ReemplazarNull otherwise RenombrarCol
+                                ReemplazarNull
                     }
                 }
             ),
